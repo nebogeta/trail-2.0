@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+<db:config name="Database_Config" doc:name="Database Config" doc:id="0a9feca2-fbf1-44dd-9bf3-6d5fcab35469" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="Inspiron4622@" database="mulesoft" />
+	</db:config>
+	<flow name="post:\emp-create:application\json:emp-sapi-config" doc:id="c6ecceca-37e7-4c83-aad5-b96bab0782d8">
+        <logger level="INFO" doc:name="Start" doc:id="b57d8f35-c5d9-409a-aa70-85f845a5dedf" message="Start Log"/>
+		<http:request method="GET" doc:name="Request" doc:id="d3a95a73-8fea-4063-8a91-c72ff197aed5" url="https://reqres.in/api/users/{empID}">
+			<http:uri-params ><![CDATA[#[output application/json
+---
+{
+	empID : payload.employeeId
+}]]]></http:uri-params>
+		</http:request>
+		<db:insert doc:name="Insert to DB" doc:id="7b0b7584-f422-4ecd-a272-98cee9f351bd" config-ref="Database_Config">
+			<db:sql ><![CDATA[insert into employee(empId, empName, empEmail) values(:empId, :empName, :empEmail)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"empId": payload.data.id,
+	"empName": payload.data.first_name ++ payload.data.last_name,
+	"empEmail": payload.data.email
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  status: 200,
+  message: "success"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<logger level="INFO" doc:name="End Log" doc:id="67266edf-ea24-4755-aa13-a8d44a3175ab" message="End Log"/>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="d8d19f93-7062-4ac8-904e-a05122f7dee4" type="HTTP:NOT_FOUND">
+				<ee:transform doc:name="Transform Message" doc:id="605fd935-7b1d-461a-82cb-4564c9b28933" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status": 404,
+	"message": "Employee not Found"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="541b1ab9-4e57-4001-b148-a4d161a41baa" type="ANY">
+				<ee:transform doc:name="Transform Message" doc:id="f5cc7593-e7a2-48c8-b426-d09a15da6536" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	  "status":500,
+      "message": "Internal Server Error"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+ 
+</flow>
+</mule>
